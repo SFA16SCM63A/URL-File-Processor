@@ -1,20 +1,13 @@
 package com.ebay.main;
-import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.OutputStreamWriter;
-import java.util.Scanner;
-import java.util.Set;
-import java.util.TreeSet;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+
+import javax.swing.JFileChooser;
+import javax.swing.filechooser.FileSystemView;
 
 import com.ebay.core.CommonHelper;
 import com.ebay.core.MergeHelper;
-import com.ebay.core.ProcessRequests;
+import com.ebay.core.ProcessGetRequest;
 import com.ebay.core.SplitHelper;
 import com.ebay.implementation.GunZipHelperImpl;
 import com.ebay.implementation.ZipHelperImpl;
@@ -22,12 +15,21 @@ import com.ebay.intrface.GunZipHelper;
 
 public class UnzipUtilityMainRunner extends CommonHelper{
 
-	public volatile int failedCount=0;
-	public volatile int passedCount=0;
+
 	
 	public static void main(String[] args) throws Exception {
-		 String inputZipFile="/home/sachin/Documents/inputData.zip";
-		 new UnzipUtilityMainRunner().run(inputZipFile);
+		
+		JFileChooser jfc = new JFileChooser(FileSystemView.getFileSystemView().getHomeDirectory());
+		int returnValue = jfc.showOpenDialog(null);
+		if (returnValue == JFileChooser.APPROVE_OPTION) {
+			File selectedFile = jfc.getSelectedFile();
+			String inputZipFile=selectedFile.getAbsolutePath();
+			new UnzipUtilityMainRunner().run(inputZipFile);
+		}else {
+			System.err.println("Failed to process. Select valid ZIP file");
+		}
+		
+		 
 	 }
 
 	public void run(String inputZipFile) throws Exception {
@@ -37,18 +39,41 @@ public class UnzipUtilityMainRunner extends CommonHelper{
 		String mergeAllInputFilesIntoSingleFile="output.txt";
 		String splitBigFileIntoSmallFileFolder="splitted";
 		
+		/*
+		 * This function will delete folder named 'extractedFiles'
+		 */
 	    refreshOutputFolder(extractFilesIntoFolder);
+	    
+	    /*
+	     * This function will Unzip all input files inside ZIP file
+	     */
 	    unZipInputFile(inputZipFile);
+	    
+	    /*
+	     * This function will UnZip for .gz files, and put it into 'extractedFiles' folder
+	     */
 	    extractAllGunZipFiles(inputZipFile,extractFilesIntoFolder);
 	    
+	    /*
+	     * This function will merge all input files into one Single input file
+	     */
 	    mergeAllInputFilesIntoSingleFile(extractFilesIntoFolder,mergeAllInputFilesIntoSingleFile);
+	    
+	    
+	    /*
+	     * This function will split Single file into small files with 50000 urls each
+	     */
 	    splitBigFileIntoSmallFiles(mergeAllInputFilesIntoSingleFile,splitBigFileIntoSmallFileFolder);
 		
-		process(splitBigFileIntoSmallFileFolder);
+	   
+	    processGetRequest(splitBigFileIntoSmallFileFolder);	
+		
 		deleteDir(new File(splitBigFileIntoSmallFileFolder));
 		deleteDir(new File(extractFilesIntoFolder));
 	}
 	
+	
+
 	
 	public void mergeAllInputFilesIntoSingleFile(String extractedInputFilesFolderName,String mergeFileName) throws Exception {
 		new MergeHelper().readAndMergeAllFiles(extractedInputFilesFolderName,mergeFileName);
@@ -58,35 +83,10 @@ public class UnzipUtilityMainRunner extends CommonHelper{
 		new SplitHelper().createNewFiles(fileName,splittedFilesFolderName);
 	}
 	
-	public void process(String splittedFileFolderName) {
-		ExecutorService executor = Executors.newFixedThreadPool(4);
-		long startTime=System.currentTimeMillis();
-		File outputFolder=new File(splittedFileFolderName);
-		if(!outputFolder.exists())throw new IllegalArgumentException();
-		int count=0;
-		for (File fileEntry : outputFolder.listFiles()) {
-	        if (!fileEntry.isDirectory()) {
-	        	ProcessRequests processRequests=new ProcessRequests(fileEntry,this);
-	        	executor.execute(processRequests);
-	        }
-		}
-		executor.shutdown();
-		try {
-			executor.awaitTermination(1000,TimeUnit.HOURS);
-		} catch (InterruptedException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		System.out.println("Executed: "+(count++));
-	    System.out.println("Total passed: "+passedCount);
-	    System.out.println("Failed count: "+failedCount);
-		
-		long endTime=System.currentTimeMillis();
-		System.out.println("Time took: "+(endTime-startTime));
-		System.out.println("Failed: "+failedCount+", Total: "+(passedCount+failedCount));
+
+	public void processGetRequest(String splitBigFileIntoSmallFileFolder) {
+		new ProcessGetRequest().process(splitBigFileIntoSmallFileFolder);	
 	}
-	
-	
 	
 	
 	public void extractAllGunZipFiles(String inputZipFile,String extractFilesIntoFolder) throws IOException {

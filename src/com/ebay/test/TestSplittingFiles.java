@@ -1,10 +1,10 @@
 package com.ebay.test;
 
+import org.junit.Assert;
 import org.junit.Test;
 
 import com.ebay.main.UnzipUtilityMainRunner;
 
-import junit.framework.Assert;
 
 public class TestSplittingFiles {
 
